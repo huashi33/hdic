@@ -1,0 +1,2 @@
+# hdic
+my remote dic
