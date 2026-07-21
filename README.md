@@ -7,9 +7,9 @@ get tag1
 set tag1 val1
 
 hash------
-add tag1 stc name huashi age 30 addr nanjing
-del tag1 stc
-del tag1 stc name age
+hadd tag1 name huashi age 30 addr nanjing
+del tag1 
+del tag1 name age
 get tag1 > tag1 name huashi age 30 addr nanjing
 get tag1 name addr > tag1 name huashi addr nanjing
 set tag1 age 31
