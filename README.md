@@ -3,7 +3,7 @@ my remote dic
 str------
 add tag1 str 
 del tag1
-get tag1
+get tag1 > tag1 huashi
 set tag1 val1
 
 hash------
@@ -18,6 +18,7 @@ set tag1 age 31 addr wanzhou
 hkeys tag1 > name age addr
 // hlen tag1 > 3
 // hexists tag1 name > 0
+
 
 
 

@@ -58,10 +58,10 @@ int hdfifo_main(int argc, char *argv[],hdcontext_t *c,int (*process)(uint8_t* d,
                 printf("收到 quit,退出。\n");
                 break;
             }
-
+            c->retout.len = 0;
             int r = process(buf,len,c);
             if(c->retout.len){
-                fprintf(stdout, "replay: %s\n", c->retout.data);
+                HLOG_DEBUG("replay: %s", c->retout.data);
             }
 
         } else if (n == -1) {
