@@ -1,64 +1,81 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "dictionary.h"
+
 #include "hddef.h"
 #include "hdfifo.h"
+#include <time.h>
+#include <unistd.h>
 
-static int hdic_add(hdcontext_t* c) {
-  int argc = c->argv.len / sizeof(char*);
-  char** argv = (char**)c->argv.data;
+HHASH_DEFINE(char*, hdval_t)
 
-  HBASE_RET_WHEN(!c->tag, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(0)));
-  HBASE_RET_WHEN(!argc, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(1)));
-  HBASE_RET_WHEN(!argv[0], HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(2)));
 
-  c->ret = dictionary_set(c->dic, c->tag, argv[0]);
-  if (c->ret) {
-    HLOG_ERROR("add fial,key:%s,val:%s", c->tag, argv[0]);
-    c->ret = HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_HDIC_SET);
-  }
-  return c->ret;
-}
 static int hdic_del(hdcontext_t* c) {
   int argc = c->argv.len / sizeof(char*);
   char** argv = (char**)c->argv.data;
-  HBASE_RET_WHEN(!c->tag, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(0)));
-  HBASE_RET_WHEN(!argc, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(1)));
-  HBASE_RET_WHEN(!argv[0], HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(2)));
+  HBASE_RET_WHEN(!c->tag, HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(0)));
+  HBASE_RET_WHEN(!argc, HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(1)));
+  HBASE_RET_WHEN(!argv[0], HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(2)));
 
-  c->ret = HBASE_RET_OK;
-  dictionary_unset(c->dic, c->tag);
-  return c->ret;
+  return hhash_del_hdval_t(c->dic, c->tag);
 }
 static int hdic_get(hdcontext_t* c) {
   int argc = c->argv.len / sizeof(char*);
   char** argv = (char**)c->argv.data;
-  HBASE_RET_WHEN(!c->tag, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(0)));
+  HBASE_RET_WHEN(!c->tag, HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(0)));
 
-  const char* v = dictionary_get(c->dic, c->tag, NULL);
-  c->ret = HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_NOTFOUND);
-  HBASE_RET_WHEN(!v, c->ret);
+  const hdval_t* val = hhash_get_hdval_t(c->dic, c->tag);
+  HBASE_RET_WHEN(!val, HBASE_RET(HDIC_RET_BASE, HBASE_RET_NOTFOUND));
 
-  c->ret = HBASE_RET_OK;
   hbuf_push(&c->retout, c->tag, strlen(c->tag));
   hbuf_push(&c->retout, " ", 1);
-  hbuf_push(&c->retout, v, strlen(v));
+  hbuf_push(&c->retout, val->buf.data, val->buf.len);
   hbuf_push(&c->retout, "\0", 1);
-  return c->ret;
+  return HBASE_RET_OK;
+}
+
+static int hdic_val_string_new(hdval_t *val,int type,char *vbuf,size_t s){
+  int r = 0;
+  val->type = type;
+  r = hbuf_init(&val->buf,s);
+  HBASE_RET_WHEN(r, r);
+  if(vbuf){
+    r = hbuf_push(&val->buf,vbuf,s);
+    // HBASE_RET_WHEN(r, r);
+  }
+  return r;
+}
+static int hdic_val_string_free(hdval_t *val){
+  int r = 0;
+  if(val && val->buf.size){
+    r = hbuf_deinit(&val->buf);
+    HBASE_RET_WHEN(r, r);
+  }
+  return r;
 }
 static int hdic_set(hdcontext_t* c) {
   int argc = c->argv.len / sizeof(char*);
   char** argv = (char**)c->argv.data;
-  HBASE_RET_WHEN(!c->tag, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(0)));
-  HBASE_RET_WHEN(!argc, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(1)));
-  HBASE_RET_WHEN(!argv[0], HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(2)));
-  c->ret = dictionary_set(c->dic, c->tag, argv[0]);
-  if (c->ret) {
-    HLOG_ERROR("add fial,key:%s,val:%s", c->tag, argv[0]);
-    c->ret = HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_HDIC_SET);
+  HBASE_RET_WHEN(!c->tag, HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(0)));
+  HBASE_RET_WHEN(!argc, HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(1)));
+  HBASE_RET_WHEN(!argv[0], HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(2)));
+
+  int r = 0;
+  size_t s = strlen(argv[0]);
+  hdval_t *val = hhash_get_hdval_t(c->dic,c->tag);
+  if(val){
+    hbuf_clear(&val->buf);
+    r = hbuf_push(&val->buf,argv[0],s);
   }
-  return c->ret;
+  else{
+    hdval_t val;
+    r = hdic_val_string_new(&val,HDIC_VALTYPE_STRING,argv[0],s);
+    r = hhash_set_hdval_t(c->dic,c->tag,val);
+  }
+  if (r) {
+    HLOG_ERROR("add fial,key:%s,val:%s", c->tag, argv[0]);
+  }
+  return r;
 }
 
 // 命令-函数指针映射表
@@ -68,7 +85,7 @@ typedef struct {
 } hdic_cmd_entry_t;
 
 static const hdic_cmd_entry_t hdic_cmd_table[] = {
-    {"add", hdic_add}, {"del", hdic_del}, {"get", hdic_get}, {"set", hdic_set}};
+    {"del", hdic_del}, {"get", hdic_get}, {"set", hdic_set}};
 #define HDIC_CMD_TABLE_SIZE (sizeof(hdic_cmd_table) / sizeof(hdic_cmd_table[0]))
 
 // 查表：根据 c->cmd 返回对应函数指针，未找到返回 NULL
@@ -99,7 +116,7 @@ static int hdic_parse(uint8_t* cmdline, size_t s, hdcontext_t* c) {
   while (buf < end && *buf == ' ') buf++;
 
   // 解析 cmd
-  if (buf >= end) return HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(1));
+  if (buf >= end) return HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(1));
   c->cmd = buf;
   while (buf < end && *buf != ' ') buf++;
   if (buf < end) {
@@ -111,7 +128,7 @@ static int hdic_parse(uint8_t* cmdline, size_t s, hdcontext_t* c) {
   while (buf < end && *buf == ' ') buf++;
 
   // 解析 tag
-  if (buf >= end) return HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(2));
+  if (buf >= end) return HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(2));
   c->tag = buf;
   while (buf < end && *buf != ' ') buf++;
   if (buf < end) {
@@ -153,59 +170,64 @@ static int hdic_parse(uint8_t* cmdline, size_t s, hdcontext_t* c) {
 
     // push token 指针（char*）到 c->argv
     r = hbuf_push(&c->argv, &tok, sizeof(char*));
-    HBASE_RET_WHEN(r, HBASE_RET(HBASE_RET_BASE_HDIC, r));
+    HBASE_RET_WHEN(r, HBASE_RET(HDIC_RET_BASE, r));
   }
 
   c->cmdfunc = hdic_find_func(c);
   HBASE_RET_WHEN(!c->cmdfunc,
-                 HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_NOTFOUND));
+                 HBASE_RET(HDIC_RET_BASE, HBASE_RET_NOTFOUND));
 
   return r;
 }
 
 static int hdcontext_init(hdcontext_t* c) {
-  HBASE_RET_WHEN(!c, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(0)));
+  HBASE_RET_WHEN(!c, HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(0)));
   int r = 0;
 
   r = hbuf_init(&c->argv, 0);
-  HBASE_RET_WHEN(r, HBASE_RET(HBASE_RET_BASE_HDIC, r));
+  HBASE_RET_WHEN(r, HBASE_RET(HDIC_RET_BASE, r));
   r = hbuf_init(&c->retout, 0);
-  HBASE_RET_WHEN(r, HBASE_RET(HBASE_RET_BASE_HDIC, r));
-  c->dic = dictionary_new(256);
-  HBASE_RET_WHEN(!c->dic, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_MALLOC));
+  HBASE_RET_WHEN(r, HBASE_RET(HDIC_RET_BASE, r));
+  c->dic = hhash_init_hdval_t();
+  HBASE_RET_WHEN(!c->dic, HBASE_RET(HDIC_RET_BASE, HBASE_RET_MALLOC));
 
   c->ret = 1;
   c->cmd = c->tag = NULL;
   return r;
 }
 static int hdcontext_deinit(hdcontext_t* c) {
-  HBASE_RET_WHEN(!c, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(0)));
+  HBASE_RET_WHEN(!c, HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(0)));
   int r = 0;
   r = hbuf_deinit(&c->argv);
-  HBASE_RET_WHEN(r, HBASE_RET(HBASE_RET_BASE_HDIC, r));
+  HBASE_RET_WHEN(r, HBASE_RET(HDIC_RET_BASE, r));
   r = hbuf_deinit(&c->retout);
-  HBASE_RET_WHEN(r, HBASE_RET(HBASE_RET_BASE_HDIC, r));
-  dictionary_del(c->dic);
+  HBASE_RET_WHEN(r, HBASE_RET(HDIC_RET_BASE, r));
+  r = hhash_deinit_hdval_t(c->dic);
+  HBASE_RET_WHEN(r, HBASE_RET(HDIC_RET_BASE, r));
+  c->dic = NULL;
 
   c->ret = 1;
   c->cmd = c->tag = NULL;
   return r;
 }
+
+
+static double now_sec(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
 // single thread,process a frame
 static int hdic_process(uint8_t* d, size_t s, hdcontext_t* c) {
   int r = 0;
-  HBASE_RET_WHEN(!d, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(0)));
-  HBASE_RET_WHEN(!s, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(1)));
+  HBASE_RET_WHEN(!d, HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(0)));
+  HBASE_RET_WHEN(!s, HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(1)));
 
   HLOG_DEBUG("< [%zu]%s", s, d);
   // parse cmd
   r = hdic_parse(d, s, c);
   HBASE_RET_WHEN(r, HBASE_RET(r, r));
-
-  c->cmdfunc(c);
-
-  // exec
-  return HBASE_RET_OK;
+  return c->cmdfunc(c);
 }
 
 static int hdraw_main(int argc, char* argv[], hdcontext_t* c,
@@ -219,14 +241,14 @@ static int hdraw_main(int argc, char* argv[], hdcontext_t* c,
   return r;
 }
 int main(int argc, char* argv[]) {
-  HBASE_RET_WHEN(1 == argc, HBASE_RET(HBASE_RET_BASE_HDIC, HBASE_RET_PARAM(0)));
+  HBASE_RET_WHEN(1 == argc, HBASE_RET(HDIC_RET_BASE, HBASE_RET_PARAM(0)));
 
   int r = 0;
   r = hlog_init(HDIC_NAME, "../config/hdic_log.conf");
   hdcontext_t c;
   r = hdcontext_init(&c);
   HLOG_INFO("[%08X]hdcontext_init", r);
-  HBASE_RET_WHEN(r, HBASE_RET(HBASE_RET_BASE_HDIC, r));
+  HBASE_RET_WHEN(r, HBASE_RET(HDIC_RET_BASE, r));
 
   if (0 == strcmp("raw", argv[1])) {
     return hdraw_main(argc, argv, &c, hdic_process);

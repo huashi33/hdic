@@ -3,7 +3,8 @@ project(hdic C)
 
 
 set(CMAKE_INSTALL_PREFIX "/home/huashi/code/")
-set(CMAKE_BUILD_TYPE Debug)
+# set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 
 
