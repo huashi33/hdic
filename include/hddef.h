@@ -2,8 +2,11 @@
 #define _HDDEF_H_
 
 #include "hdef.h"
-#include "hds.h"
 #include "hlog.h"
+#include "hcfg.h"
+#include "hds.h"
+#include "nng/nng.h"
+#include "nng/protocol/reqrep0/rep.h"
 
 #define HDIC_NAME "hdic"
 #define HDIC_RET_BASE 0x00010000
@@ -25,19 +28,27 @@ typedef struct hdval_ {
   hbuf_t buf;
 } hdval_t;
 
+
+typedef struct hdcfg_ {
+  int port;
+} hdcfg_t;
+
+
 struct hhash_hdval_t_;
 typedef struct hhash_hdval_t_ hhash_hdval_t_t;
 
 typedef struct hdcontext_ hdcontext_t;
-typedef int (*hdic_func_t)(hdcontext_t* c);
+typedef int (*hdfunc_t)(hdcontext_t* c);
 struct hdcontext_ {
   // in
   int user;
   hbuf_t argv;
   char* cmd;
-  char* tag;
-  hdic_func_t cmdfunc;
+  char* key;
+  hdfunc_t cmdfunc;
   // data
+  nng_socket sock;
+  hdcfg_t  cfg;
   hhash_hdval_t_t* dic;
   // out
   int ret;

@@ -3,8 +3,8 @@ project(hdic C)
 
 
 set(CMAKE_INSTALL_PREFIX "/home/huashi/code/")
-# set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
+# set(CMAKE_BUILD_TYPE Release)
 
 
 
@@ -17,7 +17,7 @@ link_directories(/home/huashi/code/lib)
 file(GLOB SRC_SRCS "src/*.c")
 
 add_executable(hdic ${SRC_SRCS})
-target_link_libraries(hdic PUBLIC zlog iniparser hbase)
+target_link_libraries(hdic PUBLIC zlog iniparser hbase nng)
 
 
 

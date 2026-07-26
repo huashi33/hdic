@@ -1,7 +1,6 @@
 # hdic
 my remote dic
 str------
-add tag1 str 
 del tag1
 get tag1 > tag1 huashi
 set tag1 val1
