@@ -10,18 +10,18 @@
 
 set -u
 
-HCODE=/home/huashi/code
+HC_ODE=/home/huashi/code
 TESTDIR="$(cd "$(dirname "$0")" && pwd)"
 BUILDDIR="$TESTDIR/../build"
 ITER="${1:-100000}"
 AUTOSTART="${2:-}"
 
-export LD_LIBRARY_PATH="$HCODE/lib"
+export LD_LIBRARY_PATH="$HC_ODE/lib"
 
 # ---- 编译 ----
 echo "== 编译 nng_test =="
 gcc -O2 -Wall -Wextra -o "$TESTDIR/nng_test" "$TESTDIR/nng_test.c" \
-    -I"$HCODE/include" -L"$HCODE/lib" -lnng -lpthread || exit 1
+    -I"$HC_ODE/include" -L"$HC_ODE/lib" -lnng -lpthread || exit 1
 
 # ---- 可选: 自动启动服务端 ----
 SRV_PID=""

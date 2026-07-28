@@ -87,10 +87,10 @@ snprintf(url, sizeof(url), "ipc:///tmp/hdic.sock");
 
 ```c
 r = nng_rep0_open(&ctx->sock);
-HBASE_EXEC_RET_WHEN(r, HLOG_ERROR("[%d]nng_rep0_open", r), r);
+HC_EXEC_RET_WHEN(r, HLOG_ERROR("[%d]nng_rep0_open", r), r);
 
 r = nng_listen(ctx->sock, url, NULL, 0);
-HBASE_EXEC_RET_WHEN(r, HLOG_ERROR("[%d]nng_listen", r); nng_close(ctx->sock), r);
+HC_EXEC_RET_WHEN(r, HLOG_ERROR("[%d]nng_listen", r); nng_close(ctx->sock), r);
 
 char*  request = NULL;
 size_t sz;
@@ -126,7 +126,7 @@ nng_close(ctx->sock);
 - `nng_send` 的长度自己指定。`strlen(response) + 1` 会把结尾的 `\0` 也发给对端，
   客户端会多收到一个 NUL 字节；一般应写 `strlen(response)`。
 - nng 消息本身带长度，**不存在 FIFO 那种粘包/半包问题**，一次 `nng_recv` 就是完整一帧。
-- nng 的返回值是自己的 errno 体系（0 为成功），和 hbase 的 `HBASE_RET_*` 不是一套编码，
+- nng 的返回值是自己的 errno 体系（0 为成功），和 hbase 的 `HC_RET_*` 不是一套编码，
   混在同一个 `int r` 里返回时要注意区分来源。
 - 避免 `if (r = nng_recv(...))` 这种写法，gcc 会给 `-Wparentheses` 警告，
   写成 `if ((r = nng_recv(...)) != 0)`。

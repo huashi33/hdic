@@ -1,17 +1,17 @@
 #ifndef _HDDEF_H_
 #define _HDDEF_H_
 
-#include "hdef.h"
-#include "hlog.h"
-#include "hcfg.h"
-#include "hds.h"
+#include "hcore/hdef.h"
+#include "hcore/hlog.h"
+#include "hcore/hcfg.h"
+#include "hcore/hds.h"
 #include "nng/nng.h"
 #include "nng/protocol/reqrep0/rep.h"
 
 #define HDIC_NAME "hdic"
 #define HDIC_RET_BASE 0x00010000
-#define HBASE_RET_HDIC_ 0x00000001
-#define HBASE_RET_HDIC_SET 0x00000002
+#define HC_RET_HDIC_ 0x00000001
+#define HC_RET_HDIC_SET 0x00000002
 
 //
 #define HDIC_VALTYPE_STRING 0
