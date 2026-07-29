@@ -28,72 +28,88 @@ static int hdic_val_string_free(hdval_t* val) {
   return r;
 }
 static int hdic_del(hdcontext_t* c) {
-  int argc = c->argv.len / sizeof(char*);
+  size_t argc = c->argv.len / sizeof(char*);
   char** argv = (char**)c->argv.data;
-  HC_RET_WHEN(!c->key, HC_RET(HDIC_RET_BASE, HC_RET_PARAM(0)));
-  HC_RET_WHEN(!argc, HC_RET(HDIC_RET_BASE, HC_RET_PARAM(1)));
-  HC_RET_WHEN(!argv[0], HC_RET(HDIC_RET_BASE, HC_RET_PARAM(2)));
-
-  int r = hhash_del_hdval_t(c->dic, c->key);
-
-  hbuf_clear(&c->retout);
-  hbuf_push(&c->retout, r ? "failed" : "ok", r ? 6 : 2);
-  return r;
-}
-static int hdic_get(hdcontext_t* c) {
-  int argc = c->argv.len / sizeof(char*);
-  char** argv = (char**)c->argv.data;
-  HC_RET_WHEN(!c->key, HC_RET(HDIC_RET_BASE, HC_RET_PARAM(0)));
-
-  const hdval_t* val = hhash_get_hdval_t(c->dic, c->key);
-  HC_RET_WHEN(!val, HC_RET(HDIC_RET_BASE, HC_RET_NOTFOUND));
-
-  
-  hbuf_clear(&c->retout);
-  hbuf_push(&c->retout, c->key, strlen(c->key));
-  hbuf_push(&c->retout, " ", 1);
-  hbuf_push(&c->retout, val->buf.data, val->buf.len);
-  hbuf_push(&c->retout, "\0", 1);
-  return HC_RET_OK;
-}
-static int hdic_set(hdcontext_t* c) {
-  int argc = c->argv.len / sizeof(char*);
-  char** argv = (char**)c->argv.data;
-  HC_RET_WHEN(!c->key, HC_RET(HDIC_RET_BASE, HC_RET_PARAM(0)));
-  HC_RET_WHEN(!argc, HC_RET(HDIC_RET_BASE, HC_RET_PARAM(1)));
-  HC_RET_WHEN(!argv[0], HC_RET(HDIC_RET_BASE, HC_RET_PARAM(2)));
+  HC_RET_WHEN(!argc, HDIC_RET(0, HC_RET_HDIC_PARAMNUM,0));
 
   int r = 0;
-  size_t s = strlen(argv[0]);
-  hdval_t* val = hhash_get_hdval_t(c->dic, c->key);
-  if (val) {
-    hbuf_clear(&val->buf);
-    r = hbuf_push(&val->buf, argv[0], s);
-  } else {
-    hdval_t val;
-    r = hdic_val_string_new(&val, HDIC_VALTYPE_STRING, argv[0], s);
-    r = hhash_set_hdval_t(c->dic, c->key, val);
-  }
-
   hbuf_clear(&c->retout);
-  if (!r) {
-    hbuf_push(&c->retout, "ok", 2);
-  } else {
-    char retout[256] = {0};
-    snprintf(retout, sizeof(retout) - 1,
-             "failed,user:%d,cmd:%s,key:%s,ret=%08X,%s", c->user, c->cmd,
-             c->key, c->ret, argv[0]);
-    hbuf_push(&c->retout, retout, strlen(retout));
-    HLOG_ERROR("%s", retout);
+  for (size_t i = 0; i < argc; i++){
+    r = hhash_del_hdval_t(c->dic, argv[i]);
+    if(HC_RET_OK == r){
+      hbuf_push(&c->retout, argv[i],strlen(argv[i]));
+      hbuf_push(&c->retout," ",1);
+    }
   }
-  return r;
+  return HC_RET_OK;
 }
+static int hdic_get(hdcontext_t* c) {
+  size_t argc = c->argv.len / sizeof(char*);
+  char** argv = (char**)c->argv.data;
+  HC_RET_WHEN(!argc , HDIC_RET(0, HC_RET_HDIC_PARAMNUM,0));
 
+
+  int r = 0;
+  hbuf_clear(&c->retout);
+  for (size_t i = 0; i < argc; i++){
+    hdval_t* val = hhash_get_hdval_t(c->dic, argv[i]);
+    if(val){
+      if(c->retout.len){
+        hbuf_push(&c->retout, " ", 1);
+      }
+      hbuf_push(&c->retout, argv[i], strlen(argv[i]));
+      hbuf_push(&c->retout, " ", 1);
+      hbuf_push(&c->retout, val->buf.data, val->buf.len);
+    }
+  }
+  return c->retout.len ? HC_RET_OK : HDIC_RET(0, HC_RET_NOTFOUND,0);
+}
+static int hdic_set(hdcontext_t* c) {
+  size_t argc = c->argv.len / sizeof(char*);
+  char** argv = (char**)c->argv.data;
+  HC_RET_WHEN(!argc || 0!=argc%2, HDIC_RET(0, HC_RET_HDIC_PARAMNUM,0));
+
+  int r = 0;
+  hbuf_clear(&c->retout);
+  size_t pair = argc /2;
+  for (size_t i = 0; i < pair; i++){
+    char* k = argv[2*i];
+    char* v = argv[2*i+1];
+    hdval_t* val = hhash_get_hdval_t(c->dic, k);
+    if(val){
+      hbuf_clear(&val->buf);
+      r = hbuf_push(&val->buf, v, strlen(v));
+      if(HC_RET_OK == r){
+        hbuf_push(&c->retout, k, strlen(k));
+        hbuf_push(&c->retout, " ", 1);
+      }
+    }
+  }
+  return HC_RET_OK;
+}
+static int hdic_add(hdcontext_t* c) {
+  size_t argc = c->argv.len / sizeof(char*);
+  char** argv = (char**)c->argv.data;
+  HC_RET_WHEN(!argc, HDIC_RET(0,HC_RET_HDIC_PARAMNUM,0));
+
+  int r = 0;
+  for (size_t i = 0; i < argc; i++){
+    hdval_t* val = hhash_get_hdval_t(c->dic, argv[i]);
+    if (!val){
+      hdval_t val;
+      r = hdic_val_string_new(&val, HDIC_VALTYPE_STRING,NULL,0);
+      r = hhash_set_hdval_t(c->dic, argv[i], val);
+      HC_RET_WHEN(!r, HDIC_RET(i,HC_RET_HDIC_SUBMOD,r));
+    }
+  }
+  return HC_RET_OK;
+}
 static int hdic_findfunc(char* cmd, hdcontext_t* c) {
   c->cmdfunc = NULL;
   static hhash_hdfunc_t* hashfunc = NULL;
   if (!hashfunc) {
     hashfunc = hhash_init_hdfunc_t();
+    hhash_set_hdfunc_t(hashfunc, "add", hdic_add);
     hhash_set_hdfunc_t(hashfunc, "set", hdic_set);
     hhash_set_hdfunc_t(hashfunc, "get", hdic_get);
     hhash_set_hdfunc_t(hashfunc, "del", hdic_del);
@@ -101,7 +117,7 @@ static int hdic_findfunc(char* cmd, hdcontext_t* c) {
 
   hdfunc_t f = *(hhash_get_hdfunc_t(hashfunc, cmd));
   c->cmdfunc = f;
-  return HC_RET_OK;
+  return f ? HC_RET_OK : HC_RET(HDIC_RET_BASE, HC_RET_NOTFOUND);
 
 }
 // cmdline: cmd tag argv[0] argv[1] argv[2]...
@@ -109,8 +125,8 @@ static int hdic_parse(uint8_t* cmdline, size_t s, hdcontext_t* c) {
   int r = 0;
 
   // 重置 argv 缓冲区
-  c->argv.len = 0;
-  c->cmd = c->key = NULL;
+  hbuf_clear(&c->argv);
+  c->cmd = NULL;
 
   char* buf = (char*)cmdline;
   char* end = buf + s;
@@ -133,14 +149,14 @@ static int hdic_parse(uint8_t* cmdline, size_t s, hdcontext_t* c) {
   // 跳过空格
   while (buf < end && *buf == ' ') buf++;
 
-  // 解析 tag
-  if (buf >= end) return HC_RET(HDIC_RET_BASE, HC_RET_PARAM(2));
-  c->key = buf;
-  while (buf < end && *buf != ' ') buf++;
-  if (buf < end) {
-    *buf = '\0';
-    buf++;
-  }
+  // 解析 KEY
+  // if (buf >= end) return HC_RET(HDIC_RET_BASE, HC_RET_PARAM(2));
+  // c->key = buf;
+  // while (buf < end && *buf != ' ') buf++;
+  // if (buf < end) {
+  //   *buf = '\0';
+  //   buf++;
+  // }
 
   // 解析 argv（剩余所有 token，每个以 '\0' 结尾后 push 进 c->argv）
   // 支持双引号包裹含空格/特殊字符的 token，例如: "nanjing city"
@@ -179,10 +195,9 @@ static int hdic_parse(uint8_t* cmdline, size_t s, hdcontext_t* c) {
     HC_RET_WHEN(r, HC_RET(HDIC_RET_BASE, r));
   }
 
-  // c->cmdfunc = hdic_find_func(c);
-  HC_RET_WHEN(!c->cmdfunc, HC_RET(HDIC_RET_BASE, HC_RET_NOTFOUND));
 
-  return r;
+
+  return hdic_findfunc(c->cmd, c);
 }
 static int hdcontext_init(hdcontext_t* c) {
   HC_RET_WHEN(!c, HC_RET(HDIC_RET_BASE, HC_RET_PARAM(0)));
@@ -196,7 +211,7 @@ static int hdcontext_init(hdcontext_t* c) {
   HC_RET_WHEN(!c->dic, HC_RET(HDIC_RET_BASE, HC_RET_MALLOC));
 
   c->ret = 1;
-  c->cmd = c->key = NULL;
+  c->cmd = NULL;
   return r;
 }
 static int hdcontext_deinit(hdcontext_t* c) {
@@ -211,7 +226,7 @@ static int hdcontext_deinit(hdcontext_t* c) {
   c->dic = NULL;
 
   c->ret = 1;
-  c->cmd = c->key = NULL;
+  c->cmd  = NULL;
   return r;
 }
 
@@ -229,9 +244,6 @@ static int hdic_process(uint8_t* d, size_t s, hdcontext_t* c) {
   // parse cmd
   r = hdic_parse(d, s, c);
   HC_RET_WHEN(r, HC_RET(r, r));
-
-  hdic_findfunc(c->cmd, c);
-
   return c->cmdfunc(c);
 }
 
@@ -301,13 +313,13 @@ static int hdic_exec(hdcontext_t* ctx) {
       break;
     }
 
+    request[sz] = 0;
     HLOG_DEBUG("< [%zu]%s", sz, request);
     // process
     // snprintf(response, sizeof(response), "Response to: %s", request);
     ctx->ret = hdic_process(request,sz,ctx);
     HLOG_DEBUG("> [%08X]%s",ctx->ret,ctx->retout.data);
 
-    nng_free(request, sz);
 
     // send
     if (r = nng_send(ctx->sock, ctx->retout.data, ctx->retout.len, 0)) {
@@ -320,21 +332,9 @@ static int hdic_exec(hdcontext_t* ctx) {
   return HC_RET_OK;
 }
 
-// static int hdic_init_net(hdcontext_t* ctx) {
-//   char url[256] = {0};
-//   snprintf(url, sizeof(url) - 1, "uds://0.0.0.0:%d", ctx->cfg.port);
-//   int r = 0;
-//   r = nng_rep0_open(&ctx->sock);
-//   HC_EXEC_RET_WHEN(r, HLOG_ERROR("[%d]nng_rep0_open", r), r);
 
-//   r = nng_listen(&ctx->sock, url, NULL, 0);
-//   HC_EXEC_RET_WHEN(r, HLOG_ERROR("[%d]nng_listen", r);
-//                       nng_close(ctx->sock), r);
 
-//   return HC_RET_OK;
-// }
-
-int main(int argc, char* argv[]) {
+int main(size_t argc, char* argv[]) {
   // check param
   const char* conf = argv[1];
   HC_RET_WHEN(!conf, HC_RET(HDIC_RET_BASE, HC_RET_PARAM(0)));

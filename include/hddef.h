@@ -9,10 +9,15 @@
 #include "nng/protocol/reqrep0/rep.h"
 
 #define HDIC_NAME "hdic"
-#define HDIC_RET_BASE 0x00010000
-#define HC_RET_HDIC_ 0x00000001
-#define HC_RET_HDIC_SET 0x00000002
+#define HDIC_RET_BASE 0x01000000
 
+// app no|batch no|module no|errno
+#define HDIC_RET(BNO,MYERR,SUBERR) (HDIC_RET_BASE|((BNO)<<16)|((MYERR)<<8)|(SUBERR))
+
+
+#define HC_RET_HDIC_SUBMOD    0x00000001
+#define HC_RET_HDIC_PARAMNUM  0x00000002
+#define HC_RET_HDIC_SET       0x00000003
 //
 #define HDIC_VALTYPE_STRING 0
 #define HDIC_VALTYPE_STRUCT 1
@@ -44,7 +49,7 @@ struct hdcontext_ {
   int user;
   hbuf_t argv;
   char* cmd;
-  char* key;
+  // char* key;
   hdfunc_t cmdfunc;
   // data
   nng_socket sock;
