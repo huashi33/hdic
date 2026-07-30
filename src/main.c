@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <time.h>
 
 #include "hddef.h"
@@ -35,11 +36,10 @@ static int hdic_del(hdcontext_t* c) {
   int r = 0;
   hbuf_clear(&c->retout);
   for (size_t i = 0; i < argc; i++){
-    r = hhash_del_hdval_t(c->dic, argv[i]);
-    if(HC_RET_OK == r){
-      hbuf_push(&c->retout, argv[i],strlen(argv[i]));
+    // r = hhash_del_hdval_t(c->dic, argv[i]);
+    HHASH_DEL(c->dic, argv[i]);
+    hbuf_push(&c->retout, argv[i],strlen(argv[i]));
       hbuf_push(&c->retout," ",1);
-    }
   }
   return HC_RET_OK;
 }
@@ -52,7 +52,7 @@ static int hdic_get(hdcontext_t* c) {
   int r = 0;
   hbuf_clear(&c->retout);
   for (size_t i = 0; i < argc; i++){
-    hdval_t* val = hhash_get_hdval_t(c->dic, argv[i]);
+    hdval_t* val = HHASH_GET(c->dic, argv[i]);
     if(val){
       if(c->retout.len){
         hbuf_push(&c->retout, " ", 1);
@@ -75,7 +75,7 @@ static int hdic_set(hdcontext_t* c) {
   for (size_t i = 0; i < pair; i++){
     char* k = argv[2*i];
     char* v = argv[2*i+1];
-    hdval_t* val = hhash_get_hdval_t(c->dic, k);
+    hdval_t* val = HHASH_GET(c->dic, k);
     if(val){
       hbuf_clear(&val->buf);
       r = hbuf_push(&val->buf, v, strlen(v));
@@ -85,7 +85,7 @@ static int hdic_set(hdcontext_t* c) {
       }
     }
   }
-  return HC_RET_OK;
+  return c->retout.len ? HC_RET_OK : HDIC_RET(0,HC_RET_NOTFOUND, 0);
 }
 static int hdic_add(hdcontext_t* c) {
   size_t argc = c->argv.len / sizeof(char*);
@@ -93,29 +93,41 @@ static int hdic_add(hdcontext_t* c) {
   HC_RET_WHEN(!argc, HDIC_RET(0,HC_RET_HDIC_PARAMNUM,0));
 
   int r = 0;
+  hbuf_clear(&c->retout);
   for (size_t i = 0; i < argc; i++){
-    hdval_t* val = hhash_get_hdval_t(c->dic, argv[i]);
-    if (!val){
+    if (HC_RET_OK != HHASH_EXIST(c->dic, argv[i])){
       hdval_t val;
       r = hdic_val_string_new(&val, HDIC_VALTYPE_STRING,NULL,0);
-      r = hhash_set_hdval_t(c->dic, argv[i], val);
-      HC_RET_WHEN(!r, HDIC_RET(i,HC_RET_HDIC_SUBMOD,r));
+      // r = hhash_set_hdval_t(c->dic, argv[i], val);
+      HC_RET_WHEN(r, HDIC_RET(i,HC_RET_HDIC_SUBMOD,r));
+      HHASH_SET(c->dic, argv[i], val);
+      hbuf_push(&c->retout,argv[i],strlen(argv[i]));
+      hbuf_push(&c->retout," ",1);
     }
   }
+  
+  // HLOG_DEBUG("> [%zu]add",c->retout.len);
   return HC_RET_OK;
 }
 static int hdic_findfunc(char* cmd, hdcontext_t* c) {
   c->cmdfunc = NULL;
   static hhash_hdfunc_t* hashfunc = NULL;
   if (!hashfunc) {
-    hashfunc = hhash_init_hdfunc_t();
-    hhash_set_hdfunc_t(hashfunc, "add", hdic_add);
-    hhash_set_hdfunc_t(hashfunc, "set", hdic_set);
-    hhash_set_hdfunc_t(hashfunc, "get", hdic_get);
-    hhash_set_hdfunc_t(hashfunc, "del", hdic_del);
+    // hashfunc = hhash_init_hdfunc_t();
+    // hhash_set_hdfunc_t(hashfunc, "add", hdic_add);
+    // hhash_set_hdfunc_t(hashfunc, "set", hdic_set);
+    // hhash_set_hdfunc_t(hashfunc, "get", hdic_get);
+    // hhash_set_hdfunc_t(hashfunc, "del", hdic_del);
+
+    
+    HHASH_INIT(hashfunc);
+    HHASH_SET(hashfunc, "add", hdic_add);
+    HHASH_SET(hashfunc, "set", hdic_set);
+    HHASH_SET(hashfunc, "get", hdic_get);
+    HHASH_SET(hashfunc, "del", hdic_del);
   }
 
-  hdfunc_t f = *(hhash_get_hdfunc_t(hashfunc, cmd));
+  hdfunc_t f = *(HHASH_GET(hashfunc, cmd));
   c->cmdfunc = f;
   return f ? HC_RET_OK : HC_RET(HDIC_RET_BASE, HC_RET_NOTFOUND);
 
@@ -207,7 +219,8 @@ static int hdcontext_init(hdcontext_t* c) {
   HC_RET_WHEN(r, HC_RET(HDIC_RET_BASE, r));
   r = hbuf_init(&c->retout, 0);
   HC_RET_WHEN(r, HC_RET(HDIC_RET_BASE, r));
-  c->dic = hhash_init_hdval_t();
+  // c->dic = hhash_init_hdval_t();
+  HHASH_INIT(c->dic);
   HC_RET_WHEN(!c->dic, HC_RET(HDIC_RET_BASE, HC_RET_MALLOC));
 
   c->ret = 1;
@@ -221,7 +234,7 @@ static int hdcontext_deinit(hdcontext_t* c) {
   HC_RET_WHEN(r, HC_RET(HDIC_RET_BASE, r));
   r = hbuf_deinit(&c->retout);
   HC_RET_WHEN(r, HC_RET(HDIC_RET_BASE, r));
-  r = hhash_deinit_hdval_t(c->dic);
+  HHASH_DEINIT(c->dic);
   HC_RET_WHEN(r, HC_RET(HDIC_RET_BASE, r));
   c->dic = NULL;
 
@@ -229,11 +242,11 @@ static int hdcontext_deinit(hdcontext_t* c) {
   c->cmd  = NULL;
   return r;
 }
-
+// us
 static double now_sec(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+  return (double)ts.tv_sec*1000000 + (double)ts.tv_nsec / 1e3;
 }
 // single thread,process a frame
 static int hdic_process(uint8_t* d, size_t s, hdcontext_t* c) {
@@ -302,8 +315,7 @@ static int hdic_exec(hdcontext_t* ctx) {
   HC_EXEC_RET_WHEN(r, HLOG_ERROR("[%d]nng_listen", r);
                       nng_close(ctx->sock), r);
 
-  char request[256];
-  char response[256];
+  char request[4096];
   size_t sz = sizeof(request);
   while (1) {
     sz = sizeof(request);
@@ -317,8 +329,12 @@ static int hdic_exec(hdcontext_t* ctx) {
     HLOG_DEBUG("< [%zu]%s", sz, request);
     // process
     // snprintf(response, sizeof(response), "Response to: %s", request);
+    double t1 = now_sec();
     ctx->ret = hdic_process(request,sz,ctx);
-    HLOG_DEBUG("> [%08X]%s",ctx->ret,ctx->retout.data);
+    hbuf_push(&ctx->retout,"\0",1);
+    double t = now_sec() -t1;
+    
+    HLOG_DEBUG("> [%08X][%.3fus]%s",ctx->ret,t,ctx->retout.data);
 
 
     // send
